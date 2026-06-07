@@ -1,7 +1,24 @@
 <!DOCTYPE html>
-<meta charset="UTF-8">
-<canvas id="live2d-canvas" style="position:fixed; top:0; left:0; width:100%; height:100%;"></canvas>
-<script src="live2d.js"></script>
-<script>
-    initLive2DModel('live2d-canvas', 'live2d/八千代辉夜姬.model3.json');
-</script>
+<head>
+    <meta charset="UTF-8">
+    <script src="live2d.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+</head>
+<body>
+    <canvas id="live2d-canvas"></canvas>
+    <script>
+        (async () => {
+            const app = new PIXI.Application({
+                view: document.getElementById("live2d-canvas"),
+                autoStart: true,
+                resizeTo: window
+            });
+            const yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
+            app.stage.addChild(yachio);
+            yachio.scale.set(0.8);
+        })();
+    </script>
+</body>
