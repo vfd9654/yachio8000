@@ -6,9 +6,10 @@
     'use strict';
 
     // 定义需要加载的依赖库（严格匹配 PIXI v7 及其兼容版本）
+    // 将原来的 DEPENDENCIES 替换为下面这段：
     const DEPENDENCIES = [
         'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js',
-        'https://cubism.live2d.com/sdk-web/bin/core/live2dcubismcore.min.js',
+        'https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Core/live2dcubismcore.min.js',
         'https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.5.0-beta.7/dist/index.min.js'
     ];
 
