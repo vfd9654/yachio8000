@@ -27,6 +27,11 @@
                 autoStart: true,
                 resizeTo: document.body,
             });
+            const bg = PIXI.Sprite.from("back.png");
+            bg.width = app.screen.width;
+            bg.height = app.screen.height;
+            app.stage.addChild(bg);
+
             yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
             app.stage.addChild(yachio);
             yachio.scale.set(0.01);
