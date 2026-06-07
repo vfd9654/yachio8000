@@ -35,8 +35,8 @@
             yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
             app.stage.addChild(yachio);
             yachio.scale.set(0.15);
-            yachio.y = 50;
-            yachio.x = (window.innerWidth / 2) - (yachio.width / 2);
+            yachio.y = app.screen.height / 10;
+            yachio.x = (app.screen.width / 2) - (yachio.width / 2);
         })();
     </script>
 </body>
