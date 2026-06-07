@@ -7,7 +7,37 @@
 			"八千代辉夜姬.8192/texture_01.png"
 		],
 		"Physics": "八千代辉夜姬.physics3.json",
-		"DisplayInfo": "八千代辉夜姬.cdi3.json"
+		"DisplayInfo": "八千代辉夜姬.cdi3.json",
+        "Expressions": [
+           {
+                "Name": "tears", 
+                "File": "眼泪.exp3.json"
+            },
+            {
+                "Name": "droplets", 
+                "File": "泪珠.exp3.json"
+            },
+            {
+                "Name": "smile", 
+                "File": "笑咪咪.exp3.json"
+            },
+            {
+                "Name": "squint", 
+                "File": "眯眯眼.exp3.json"
+			},
+			{
+                "Name": "droplets", 
+                "File": "泪珠.exp3.json"
+            },
+            {
+                "Name": "smile", 
+                "File": "笑咪咪.exp3.json"
+            },
+            {
+                "Name": "squint", 
+                "File": "眯眯眼.exp3.json"
+            }
+        ]
 	},
 	"Groups": [
 		{
