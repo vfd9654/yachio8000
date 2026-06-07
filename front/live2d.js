@@ -1,80 +1,150 @@
 /**
- * 纯 JS 加载并渲染 Live2D 模型
- * @param {string} elementId - 容器的 ID（自动在该容器内创建 canvas）
- * @param {string} modelUrl - Live2D 模型的 model.json 绝对或相对路径
+ * Live2D 纯前端免 HTML 渲染插件
+ * 支持自动加载依赖、按序初始化、自动居中缩放及鼠标视线追踪
  */
-function initLive2DModel(elementId, modelUrl) {
-    // 1. 动态引入 Live2D 核心依赖库（Cubism Web Framework 基础）
-    // 这里使用 cdnjs 提供的 pixi.js 和 pixi-live2d-display 库，这是目前前端最方便渲染 Live2D 的组合
-    const scripts = [
+(function (global) {
+    'use strict';
+
+    // 定义需要加载的依赖库（严格匹配 PIXI v7 及其兼容版本）
+    const DEPENDENCIES = [
         'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js',
-        'https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js'
+        'https://cubism.live2d.com/sdk-web/bin/core/live2dcubismcore.min.js',
+        'https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.5.0-beta.7/dist/index.min.js'
     ];
 
-    let loadedCount = 0;
+    let isLoaded = false;
+    let isLoading = false;
+    const initQueue = []; // 缓冲队列，防止依赖未加载完时多次调用报错
 
-    // 循环加载依赖脚本
-    scripts.forEach(src => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => {
-            loadedCount++;
-            if (loadedCount === scripts.length) {
-                // 依赖加载完成后，开始渲染模型
-                startRender(elementId, modelUrl);
+    /**
+     * 串行加载远程脚本
+     */
+    function loadScripts(urls, callback) {
+        let index = 0;
+
+        function next() {
+            if (index < urls.length) {
+                const script = document.createElement('script');
+                script.src = urls[index];
+                script.async = false; // 确保执行顺序
+                script.onload = () => {
+                    index++;
+                    next();
+                };
+                script.onerror = () => {
+                    console.error(`[Live2D] 依赖脚本加载失败: ${urls[index]}`);
+                };
+                document.head.appendChild(script);
+            } else {
+                callback();
             }
-        };
-        document.head.appendChild(script);
-    });
-}
-
-// 内部核心渲染函数
-function startRender(elementId, modelUrl) {
-    const container = document.getElementById(elementId);
-    if (!container) {
-        console.error(`未找到 ID 为 "${elementId}" 的容器元素。`);
-        return;
+        }
+        next();
     }
 
-    // 2. 动态创建 Canvas 画布并设置样式
-    const canvas = document.createElement('canvas');
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    container.appendChild(canvas);
+    /**
+     * 核心渲染逻辑
+     */
+    function render(elementId, modelUrl, options = {}) {
+        const container = document.getElementById(elementId);
+        if (!container) {
+            console.error(`[Live2D] 未找到 ID 为 "${elementId}" 的容器元素。`);
+            return;
+        }
 
-    // 3. 初始化 PIXI 应用
-    const app = new PIXI.Application({
-        view: canvas,
-        autoStart: true,
-        resizeTo: container, // 自动撑满容器
-        backgroundAlpha: 0   // 背景透明
-    });
+        // 检查容器定位，确保 canvas 相对定位正确
+        const style = window.getComputedStyle(container);
+        if (style.position === 'static') {
+            container.style.position = 'relative';
+        }
 
-    // 4. 载入并渲染 Live2D 模型
-    // pixi-live2d-display 会自动判断是 Live2D v2(Cubism 2) 还是 v3/v4(Cubism 3/4)
-    PIXI.live2d.Live2DModel.from(modelUrl).then(model => {
-        // 将模型添加到舞台
-        app.stage.addChild(model);
+        // 动态创建 canvas 元素
+        const canvas = document.createElement('canvas');
+        canvas.style.position = 'absolute';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        container.appendChild(canvas);
 
-        // 自动适配模型大小和位置
-        const scaleX = container.clientWidth / model.width;
-        const scaleY = container.clientHeight / model.height;
-        
-        // 保持比例缩放
-        const scale = Math.min(scaleX, scaleY);
-        model.scale.set(scale);
-
-        // 居中显示
-        model.x = (container.clientWidth - model.width * scale) / 2;
-        model.y = (container.clientHeight - model.height * scale) / 2;
-
-        // 绑定互动事件（例如点击、拖拽视线跟随鼠标）
-        model.on('hit', (hitAreas) => {
-            if (hitAreas.includes('body')) {
-                model.motion('tap_body'); // 触发点击身体的动作
-            }
+        // 初始化 PIXI Application
+        const app = new PIXI.Application({
+            view: canvas,
+            autoStart: true,
+            resizeTo: container,
+            backgroundAlpha: 0 // 默认背景透明
         });
-    }).catch(error => {
-        console.error('Live2D 模型加载失败:', error);
-    });
-}
+
+        // 载入 Live2D 模型
+        PIXI.live2d.Live2DModel.from(modelUrl)
+            .then(model => {
+                app.stage.addChild(model);
+
+                // 适配缩放比例（默认充满容器的 90%）
+                const zoom = options.zoom || 0.9;
+                const scaleX = container.clientWidth / model.width;
+                const scaleY = container.clientHeight / model.height;
+                const scale = Math.min(scaleX, scaleY) * zoom;
+                model.scale.set(scale);
+
+                // 居中模型位置
+                model.x = (container.clientWidth - model.width * scale) / 2;
+                model.y = (container.clientHeight - model.height * scale) / 2;
+
+                // 开启鼠标/指针追踪视线互动
+                if (options.trackPointer !== false) {
+                    model.trackPointer();
+                }
+
+                // 绑定点击互动
+                model.on('hit', (hitAreas) => {
+                    if (hitAreas.includes('body') || hitAreas.includes('Body')) {
+                        model.motion('tap_body'); 
+                    } else if (hitAreas.includes('face') || hitAreas.includes('Face')) {
+                        model.motion('tap_face');
+                    }
+                });
+
+                // 暴露给外层，方便微调
+                if (typeof options.onSuccess === 'function') {
+                    options.onSuccess(model, app);
+                }
+            })
+            .catch(error => {
+                console.error('[Live2D] 模型渲染失败:', error);
+                if (typeof options.onError === 'function') {
+                    options.onError(error);
+                }
+            });
+    }
+
+    /**
+     * 暴露给外部的主入口函数
+     * @param {string} elementId - 容器ID
+     * @param {string} modelUrl - 模型配置文件（.json / .model3.json）的URL
+     * @param {Object} [options] - 配置参数
+     */
+    global.initLive2DModel = function (elementId, modelUrl, options = {}) {
+        if (isLoaded) {
+            render(elementId, modelUrl, options);
+            return;
+        }
+
+        // 将当前任务加入队列
+        initQueue.push({ elementId, modelUrl, options });
+
+        if (!isLoading) {
+            isLoading = true;
+            loadScripts(DEPENDENCIES, () => {
+                isLoaded = true;
+                isLoading = false;
+                // 依赖加载完成后，清空并执行队列中的所有渲染任务
+                while (initQueue.length > 0) {
+                    const task = initQueue.shift();
+                    render(task.elementId, task.modelUrl, task.options);
+                }
+            });
+        }
+    };
+
+})(window);
