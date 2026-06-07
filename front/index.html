@@ -10,6 +10,7 @@
             margin: 0;
             overflow: hidden;
             height: 100vh;
+            padding: 0;
         }
         canvas {
             margin: 0;
@@ -19,15 +20,16 @@
 <body>
     <canvas id="live2d-canvas"></canvas>
     <script>
+        var yachio;
         (async () => {
             const app = new PIXI.Application({
                 view: document.getElementById("live2d-canvas"),
                 autoStart: true,
                 resizeTo: document.body,
             });
-            const yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
+            yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
             app.stage.addChild(yachio);
-            yachio.scale.set(0.25);
+            yachio.scale.set(0.01);
         })();
     </script>
 </body>
