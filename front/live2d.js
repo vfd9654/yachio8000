@@ -7,10 +7,14 @@
 
     // 定义需要加载的依赖库（严格匹配 PIXI v7 及其兼容版本）
     // 将原来的 DEPENDENCIES 替换为下面这段：
+    // 更新为国内访问极其稳定的公共 CDN 组合
     const DEPENDENCIES = [
-        'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js',
-        'https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Core/live2dcubismcore.min.js',
-        'https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.5.0-beta.7/dist/index.min.js'
+        // PIXI.js 核心库
+        'https://cdn.staticfile.net/pixi.js/7.2.4/pixi.min.js',
+        // 换用国内骨干网加速的 Cubism Core 核心库
+        'https://registry.npmmirror.com/pixi-live2d-display/0.5.0-beta.7/files/snapshots/cubism-core/live2dcubismcore.min.js',
+        // 针对 PIXI v7 编译的 display 库
+        'https://cdn.staticfile.net/pixi-live2d-display/0.5.0-beta.7/index.min.js'
     ];
 
     let isLoaded = false;
