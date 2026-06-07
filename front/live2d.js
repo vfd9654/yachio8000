@@ -1,320 +1,361 @@
-// 纯前端Live2D实现 (无需额外HTML，仅JS核心)
-// 需要页面中已存在 id="live2d-canvas" 的canvas元素
-// 或者手动传入canvas元素
+// 纯原生 Live2D Cubism 5 SDK 实现
+// 使用官方 Cubism Web Framework
 
 (function() {
-    // ==================== 配置参数 ====================
-    // Live2D模型资源路径 (请替换为你自己的模型目录)
+    // ==================== 配置 ====================
+    // 模型地址（请替换为你自己的模型）
     const MODEL_PATH = "live2d/八千代辉夜姬.model3.json";
-    // 注意: 上述CDN模型仅供测试，正式使用请替换为本地或合法模型文件
     
-    // Canvas元素 (自动查找页面中id为live2d-canvas的元素)
-    let canvas = document.getElementById('live2d-canvas');
-    if (!canvas) {
-        // 如果没有找到，尝试创建canvas并添加到body
-        canvas = document.createElement('canvas');
-        canvas.id = 'live2d-canvas';
-        canvas.style.position = 'fixed';
-        canvas.style.top = '0';
-        canvas.style.left = '0';
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-        canvas.style.display = 'block';
-        document.body.appendChild(canvas);
-    }
+    // 创建 canvas
+    const canvas = document.createElement('canvas');
+    canvas.id = 'live2d-canvas';
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+    canvas.style.zIndex = '9999';
+    document.body.appendChild(canvas);
     
-    // 设置canvas尺寸为屏幕大小
+    // 调整 canvas 尺寸
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
     }
-    window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
     
-    // ==================== Live2D Cubism SDK 核心加载 ====================
-    // 动态加载Live2D Cubism SDK (核心库)
-    // 注意: 需要提前引入Live2D的库文件，此脚本会动态创建script标签加载
+    // ==================== Live2D 核心变量 ====================
+    let gl = null;
+    let cubismRenderer = null;
+    let live2DModel = null;
+    let animationId = null;
+    let cubismConfig = null;
     
-    let live2DInstance = null;
-    let model = null;
-    let delegate = null;
-    
-    // 检查Live2D库是否已存在
-    function loadLive2DSDK() {
+    // ==================== 加载 Cubism SDK ====================
+    async function loadScript(src) {
         return new Promise((resolve, reject) => {
-            if (typeof window.Live2DCubismFramework !== 'undefined') {
-                resolve();
-                return;
-            }
-            
-            // 加载核心JS (Cubism 5 / Cubism 4 通用)
-            // 使用稳定的CDN资源 (来自官方cubismweb样本)
             const script = document.createElement('script');
-            script.src = 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.js';
-            script.onload = () => {
-                // 加载框架适配器
-                const frameworkScript = document.createElement('script');
-                frameworkScript.src = 'https://cdn.jsdelivr.net/npm/live2d-cubism@5/src/live2dcubismframework.js';
-                frameworkScript.onload = () => {
-                    resolve();
-                };
-                frameworkScript.onerror = reject;
-                document.head.appendChild(frameworkScript);
-            };
-            script.onerror = reject;
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`加载失败: ${src}`));
             document.head.appendChild(script);
         });
     }
     
-    // 初始化Live2D环境
-    async function initLive2D() {
+    async function loadCubismSDK() {
+        console.log('正在加载 Live2D Cubism SDK...');
+        
+        // 加载 Cubism Core
+        await loadScript('https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.js');
+        console.log('Cubism Core 加载完成');
+        
+        // 等待 Live2DCubismFramework 可用
+        await new Promise(resolve => {
+            const check = setInterval(() => {
+                if (typeof Live2DCubismFramework !== 'undefined') {
+                    clearInterval(check);
+                    resolve();
+                }
+            }, 100);
+        });
+        
+        // 加载 Cubism Framework
+        await loadScript('https://cdn.jsdelivr.net/npm/live2d-cubism@5.0.0/lib/live2dcubismframework.js');
+        console.log('Cubism Framework 加载完成');
+        
+        // 等待初始化完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // ==================== WebGL 初始化 ====================
+    function initWebGL() {
+        gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        if (!gl) {
+            throw new Error('浏览器不支持 WebGL');
+        }
+        
+        // 设置透明背景和混合模式
+        gl.clearColor(0.0, 0.0, 0.0, 0.0);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        
+        console.log('WebGL 初始化成功');
+    }
+    
+    // ==================== 加载模型文件 ====================
+    async function fetchBuffer(url) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${url}`);
+        return await response.arrayBuffer();
+    }
+    
+    async function loadModel() {
+        const CubismFramework = Live2DCubismFramework;
+        const csm = CubismFramework.CubismFramework;
+        
+        // 创建资源加载器
+        const resourceLoader = {
+            loadBytes: async (path) => {
+                console.log('加载资源:', path);
+                const fullUrl = new URL(path, MODEL_URL).href;
+                return new Uint8Array(await fetchBuffer(fullUrl));
+            }
+        };
+        
+        // 加载 .model3.json
+        console.log('加载模型配置:', MODEL_URL);
+        const modelJsonBuffer = await fetchBuffer(MODEL_URL);
+        const modelSetting = csm.CubismModelSettingJson.create(modelJsonBuffer);
+        
+        // 创建模型
+        live2DModel = csm.CubismModel.loadModel(modelSetting, resourceLoader);
+        console.log('模型加载成功');
+        
+        // 创建渲染器
+        cubismRenderer = CubismFramework.CubismRenderer_WebGL.create();
+        cubismRenderer.initialize(gl);
+        cubismRenderer.setModel(live2DModel);
+        
+        // 设置透明背景
+        cubismRenderer.setClearColor(0.0, 0.0, 0.0, 0.0);
+        
+        // 设置模型大小和位置
+        const modelWidth = live2DModel.getCanvasWidth();
+        const modelHeight = live2DModel.getCanvasHeight();
+        const screenWidth = canvas.width;
+        const screenHeight = canvas.height;
+        
+        // 计算缩放比例，让模型适配屏幕高度
+        const scale = (screenHeight / modelHeight) * 0.7;
+        cubismRenderer.setMvpMatrix(
+            1.0, 0, 0, 0,
+            0, 1.0, 0, 0,
+            0, 0, 1.0, 0,
+            0, 0, 0, 1.0
+        );
+        
+        // 设置模型位置（底部居中）
+        const offsetX = (screenWidth - modelWidth * scale) / 2 / screenWidth * 2;
+        const offsetY = -0.3; // 向上偏移
+        
+        // 更新 MVP 矩阵实现缩放和位移
+        const projection = new Float32Array(16);
+        projection[0] = scale * 2 / screenWidth * canvas.width;
+        projection[5] = scale * 2 / screenHeight * canvas.height;
+        projection[10] = 1;
+        projection[12] = offsetX;
+        projection[13] = offsetY;
+        projection[15] = 1;
+        
+        cubismRenderer.setMvpMatrix(projection);
+        
+        // 加载运动数据
         try {
-            await loadLive2DSDK();
+            const motionCount = modelSetting.getMotionCount('Idle');
+            console.log('发现动作数量:', motionCount);
+        } catch(e) {
+            console.log('无动作数据');
+        }
+        
+        // 设置鼠标交互
+        setupInteraction();
+    }
+    
+    // ==================== 鼠标交互 ====================
+    function setupInteraction() {
+        canvas.addEventListener('click', (e) => {
+            // 点击时触发 tap 动作
+            if (live2DModel && live2DModel.getParameterIndex) {
+                try {
+                    // 触发身体点击参数
+                    const paramIndex = live2DModel.getParameterIndex('ParamTapBody');
+                    if (paramIndex >= 0) {
+                        live2DModel.addParameterValue(paramIndex, 1.0);
+                    }
+                    console.log('点击模型');
+                    
+                    // 简单动画反馈
+                    let scale = 0.7;
+                    const animate = setInterval(() => {
+                        scale += 0.05;
+                        if (scale > 0.75) clearInterval(animate);
+                    }, 20);
+                } catch(e) {}
+            }
+        });
+        
+        // 鼠标移动时让模型视线跟随
+        let lastX = 0, lastY = 0;
+        canvas.addEventListener('mousemove', (e) => {
+            if (!live2DModel) return;
             
-            // 等待框架准备就绪
-            if (typeof Live2DCubismFramework === 'undefined') {
-                throw new Error('Live2D Cubism Framework 加载失败');
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            
+            // 更新眼球参数
+            try {
+                const eyeX = live2DModel.getParameterIndex('ParamEyeBallX');
+                const eyeY = live2DModel.getParameterIndex('ParamEyeBallY');
+                if (eyeX >= 0) live2DModel.setParameterValue(eyeX, (x - 0.5) * 2);
+                if (eyeY >= 0) live2DModel.setParameterValue(eyeY, (y - 0.5) * 1.5);
+            } catch(e) {}
+            
+            lastX = x;
+            lastY = y;
+        });
+    }
+    
+    // ==================== 动画循环 ====================
+    function animate() {
+        if (!gl || !cubismRenderer || !live2DModel) return;
+        
+        // 清除画布
+        gl.clearColor(0.0, 0.0, 0.0, 0.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        
+        // 更新模型参数（让模型动起来）
+        const now = Date.now() / 1000;
+        
+        // 添加呼吸效果
+        try {
+            const breathParam = live2DModel.getParameterIndex('ParamBreath');
+            if (breathParam >= 0) {
+                const breath = Math.sin(now * 2) * 0.5 + 0.5;
+                live2DModel.setParameterValue(breathParam, breath);
             }
             
-            // 初始化Cubism框架
-            const cubism = Live2DCubismFramework;
-            cubism.initialize();
-            
-            // 创建渲染器
-            const gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-            if (!gl) {
-                throw new Error('WebGL不支持');
+            // 添加眨眼
+            const eyeLOpen = live2DModel.getParameterIndex('ParamEyeLOpen');
+            const eyeROpen = live2DModel.getParameterIndex('ParamEyeROpen');
+            if (eyeLOpen >= 0 && eyeROpen >= 0) {
+                const blink = Math.sin(now * 4) > 0.95 ? 0 : 1;
+                live2DModel.setParameterValue(eyeLOpen, blink);
+                live2DModel.setParameterValue(eyeROpen, blink);
             }
             
-            // 开启透明背景
-            gl.clearColor(0.0, 0.0, 0.0, 0.0);
-            gl.enable(gl.BLEND);
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            // 身体轻微摆动
+            const bodyX = live2DModel.getParameterIndex('ParamBodyX');
+            if (bodyX >= 0) {
+                live2DModel.setParameterValue(bodyX, Math.sin(now) * 15);
+            }
+            const bodyY = live2DModel.getParameterIndex('ParamBodyY');
+            if (bodyY >= 0) {
+                live2DModel.setParameterValue(bodyY, Math.sin(now * 1.2) * 8);
+            }
+        } catch(e) {}
+        
+        // 更新模型
+        live2DModel.update();
+        
+        // 渲染
+        cubismRenderer.render(live2DModel);
+        
+        // 继续动画
+        animationId = requestAnimationFrame(animate);
+    }
+    
+    // ==================== 主函数 ====================
+    async function main() {
+        try {
+            // 显示加载提示
+            showLoadingMessage();
             
-            const renderer = new cubism.CubismRenderer_WebGL();
-            renderer.initialize(gl);
-            renderer.setClearColor(0.0, 0.0, 0.0, 0.0);
+            // 加载 SDK
+            await loadCubismSDK();
+            
+            // 初始化 WebGL
+            initWebGL();
+            
+            // 初始化 Cubism Framework
+            const CubismFramework = Live2DCubismFramework;
+            CubismFramework.CubismFramework.initialize();
+            console.log('Cubism Framework 初始化完成');
             
             // 加载模型
-            const modelSetting = new cubism.CubismModelSettingJson(MODEL_PATH);
-            const model = cubism.CubismModel.loadModel(modelSetting);
+            await loadModel();
             
-            // 创建委托 (处理资源加载)
-            delegate = {
-                readFile: async (path) => {
-                    const response = await fetch(path);
-                    return await response.arrayBuffer();
+            // 隐藏加载提示
+            hideLoadingMessage();
+            
+            // 启动动画
+            animate();
+            
+            // 窗口大小改变时重新调整
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                if (gl) {
+                    gl.viewport(0, 0, canvas.width, canvas.height);
                 }
-            };
+            });
             
-            // 完整模型加载与渲染准备需要更复杂的步骤，这里简化但确保核心展示
-            // 由于SDK加载异步复杂，实际展示需要更完整实现。下面提供最小渲染循环框架
-            console.log('Live2D 模型加载尝试:', MODEL_PATH);
+            console.log('Live2D 启动成功！');
             
-            // 简单演示：创建纹理等
-            // 为了确保正确运行，这里使用备用轻量级方法
-            alert('注意：完整Live2D SDK需要多个依赖，本示例展示核心思路。\n建议使用官方SDK或pixi-live2d-display库更简洁。');
-            
-        } catch (err) {
-            console.error('Live2D 初始化失败', err);
-            showFallback();
+        } catch (error) {
+            console.error('Live2D 启动失败:', error);
+            showErrorMessage(error.message);
         }
     }
     
-    // 降级显示: 如果Live2D加载失败，显示可爱提示
-    function showFallback() {
+    // ==================== UI 辅助函数 ====================
+    function showLoadingMessage() {
+        const div = document.createElement('div');
+        div.id = 'live2d-loading';
+        div.textContent = '🎀 Live2D 模型加载中... 🎀';
+        div.style.position = 'fixed';
+        div.style.bottom = '20px';
+        div.style.left = '20px';
+        div.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        div.style.color = 'white';
+        div.style.padding = '8px 16px';
+        div.style.borderRadius = '20px';
+        div.style.fontFamily = 'system-ui';
+        div.style.fontSize = '14px';
+        div.style.zIndex = '10000';
+        div.style.backdropFilter = 'blur(8px)';
+        document.body.appendChild(div);
+    }
+    
+    function hideLoadingMessage() {
+        const div = document.getElementById('live2d-loading');
+        if (div) div.remove();
+    }
+    
+    function showErrorMessage(msg) {
+        const div = document.createElement('div');
+        div.textContent = `❌ Live2D 错误: ${msg}`;
+        div.style.position = 'fixed';
+        div.style.bottom = '20px';
+        div.style.left = '20px';
+        div.style.backgroundColor = 'rgba(255,0,0,0.7)';
+        div.style.color = 'white';
+        div.style.padding = '8px 16px';
+        div.style.borderRadius = '20px';
+        div.style.fontFamily = 'system-ui';
+        div.style.fontSize = '12px';
+        div.style.zIndex = '10000';
+        document.body.appendChild(div);
+        
+        // 绘制备用画面
         const ctx = canvas.getContext('2d');
         function drawFallback() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#2c3e50';
+            ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.font = '24px "Segoe UI", system-ui';
-            ctx.fillStyle = '#ffffffcc';
+            ctx.font = '24px system-ui';
+            ctx.fillStyle = '#ccc';
             ctx.textAlign = 'center';
-            ctx.fillText('🎀 召唤Live2D失败 🎀', canvas.width/2, canvas.height/2);
-            ctx.font = '16px system-ui';
-            ctx.fillStyle = '#aaa';
-            ctx.fillText('请检查网络或模型路径', canvas.width/2, canvas.height/2 + 50);
+            ctx.fillText('✨ Live2D Ready ✨', canvas.width/2, canvas.height/2);
+            ctx.font = '14px system-ui';
+            ctx.fillStyle = '#888';
+            ctx.fillText('点击页面任意位置', canvas.width/2, canvas.height/2 + 40);
         }
         drawFallback();
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            drawFallback();
-        });
+        window.addEventListener('resize', drawFallback);
     }
     
-    // 使用更可靠且轻量的方案: 借助 pixi-live2d-display (更成熟)
-    // 上述原生SDK繁琐，为了“纯前端且可靠展示”，推荐采用社区库。
-    // 因此下面改用 pixi.js + pixi-live2d-display 实现 100% 可运行demo。
-    // 这才是真正的纯前端无痛Live2D。
-    
-    // ==================== 可靠方案：PIXI + live2d 集成 ====================
-    async function startWithPixiLive2d() {
-        // 动态加载PIXI和扩展
-        function loadScript(src) {
-            return new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        }
-        
-        try {
-            await loadScript('https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js');
-            await loadScript('https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/pixi-live2d-display.min.js');
-            
-            // 检查依赖
-            if (typeof PIXI === 'undefined') throw new Error('PIXI加载失败');
-            
-            // 创建PIXI应用
-            const app = new PIXI.Application({
-                view: canvas,
-                width: window.innerWidth,
-                height: window.innerHeight,
-                transparent: true,
-                backgroundAlpha: 0,
-                autoDensity: true,
-                resolution: devicePixelRatio || 1
-            });
-            
-            // 调整窗口大小
-            window.addEventListener('resize', () => {
-                app.renderer.resize(window.innerWidth, window.innerHeight);
-            });
-            
-            // 加载Live2D模型
-            // 模型地址（测试用可用的live2d模型，确保跨域和有效性）
-            const modelUrl = 'https://cdn.jsdelivr.net/gh/Eikanya/Live2d-model/ShizukuTalk/shizuku-pj/Shizuku.model3.json';
-            // 备用可靠模型（如失效可换，也可替换成本地模型路径）
-            // 这里使用知名的shizuku模型，注意CDN可能时效，建议替换为自己的模型
-            
-            try {
-                // 使用 PIXI.live2d 扩展
-                const live2dModel = await PIXI.Live2DModel.from(modelUrl);
-                
-                // 设置模型位置和缩放
-                live2dModel.x = app.screen.width / 2;
-                live2dModel.y = app.screen.height;
-                live2dModel.anchor.set(0.5, 1);
-                live2dModel.scale.set(0.28); // 根据模型调整缩放
-                
-                // 添加交互: 点击触发随机动作
-                live2dModel.interactive = true;
-                live2dModel.on('pointertap', () => {
-                    // 随机播放动作组 (如果有)
-                    if (live2dModel.internalModel && live2dModel.internalModel.motionManager) {
-                        const motions = ['Idle', 'TapBody', 'FlickHead', 'Shake'];
-                        const randomMotion = motions[Math.floor(Math.random() * motions.length)];
-                        live2dModel.motion(randomMotion);
-                    } else {
-                        // 简单点击反馈: 稍微弹动缩放
-                        live2dModel.scale.set(0.3);
-                        setTimeout(() => live2dModel.scale.set(0.28), 150);
-                    }
-                    // 控制台输出
-                    console.log('点击了Live2D模型');
-                });
-                
-                // 添加鼠标悬浮效果
-                live2dModel.on('pointerover', () => {
-                    live2dModel.scale.set(0.29);
-                });
-                live2dModel.on('pointerout', () => {
-                    live2dModel.scale.set(0.28);
-                });
-                
-                // 呼吸/闲置动作循环播放
-                setInterval(() => {
-                    if (live2dModel && live2dModel.motion) {
-                        live2dModel.motion('Idle');
-                    }
-                }, 10000);
-                
-                // 添加到舞台
-                app.stage.addChild(live2dModel);
-                
-                // 跟随窗口位置更新
-                window.addEventListener('resize', () => {
-                    live2dModel.x = app.screen.width / 2;
-                    live2dModel.y = app.screen.height;
-                });
-                
-                // 添加简单装饰提示文字 (可选)
-                const style = new PIXI.TextStyle({
-                    fontFamily: 'system-ui, "Segoe UI"',
-                    fontSize: 14,
-                    fill: '#ffffffcc',
-                    dropShadow: true,
-                    dropShadowColor: '#00000066'
-                });
-                const hintText = new PIXI.Text('✨ 点击我互动 ✨', style);
-                hintText.anchor.set(0.5, 0);
-                hintText.x = app.screen.width / 2;
-                hintText.y = app.screen.height - 50;
-                app.stage.addChild(hintText);
-                
-                window.addEventListener('resize', () => {
-                    hintText.x = app.screen.width / 2;
-                    hintText.y = app.screen.height - 50;
-                });
-                
-                // 开启动画循环
-                app.ticker.add(() => {
-                    // 自动更新模型（内部已处理）
-                });
-                
-                console.log('Live2D模型加载成功！');
-                
-            } catch (modelErr) {
-                console.error('模型加载失败:', modelErr);
-                // 显示降级图形
-                showPixiFallback(app);
-            }
-            
-        } catch (err) {
-            console.error('PIXI Live2D 启动失败:', err);
-            showFallback();
-        }
-    }
-    
-    function showPixiFallback(app) {
-        // 清空并绘制备用动画
-        const graphics = new PIXI.Graphics();
-        graphics.beginFill(0x2c3e50);
-        graphics.drawRect(0, 0, app.screen.width, app.screen.height);
-        graphics.endFill();
-        const text = new PIXI.Text('🌸 Live2D 模型加载失败\n请检查网络或更换模型地址', {
-            fontFamily: 'system-ui',
-            fontSize: 20,
-            fill: '#ffffff',
-            align: 'center'
-        });
-        text.anchor.set(0.5);
-        text.x = app.screen.width / 2;
-        text.y = app.screen.height / 2;
-        app.stage.addChild(graphics, text);
-        
-        // 画一只小猫简单示意
-        const cat = new PIXI.Graphics();
-        cat.beginFill(0xffaa66);
-        cat.drawCircle(0, 0, 40);
-        cat.endFill();
-        cat.beginFill(0x000000);
-        cat.drawCircle(-15, -10, 5);
-        cat.drawCircle(15, -10, 5);
-        cat.endFill();
-        cat.x = app.screen.width / 2;
-        cat.y = app.screen.height / 2 + 60;
-        app.stage.addChild(cat);
-    }
-    
-    // 最终启动：首选PIXI-live2d-display方案，最稳定纯前端
-    startWithPixiLive2d().catch(err => {
-        console.error('所有方案失败', err);
-        showFallback();
-    });
-    
+    // 启动
+    main();
 })();
