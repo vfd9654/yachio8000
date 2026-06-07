@@ -1,109 +1,80 @@
-class CanvasLive2D {
-    constructor(canvasId, modelUrl = null) {
-        this.canvas = document.getElementById(canvasId);
-        if (!this.canvas) throw new Error(`Canvas ${canvasId} not found`);
-        
-        this.ctx = this.canvas.getContext('2d');
-        this.modelUrl = modelUrl || 'live2d/八千代辉夜姬.model3.json';
-        this.model = null;
-        this.mouseX = 0.5;
-        this.mouseY = 0.5;
-        this.frame = 0;
-        
-        this.init();
-    }
-    
-    async init() {
-        await this.loadSDK();
-        await this.loadModel();
-        this.setupEvents();
-        this.animate();
-    }
-    
-    async loadSDK() {
-        const sdkUrl = 'https://cdn.jsdelivr.net/gh/guanssss/live2d-sdk-web@1.0.0/dist/live2d.min.js';
-        if (!window.live2d) {
-            await new Promise((resolve) => {
-                const script = document.createElement('script');
-                script.src = sdkUrl;
-                script.onload = resolve;
-                document.head.appendChild(script);
-            });
-        }
-    }
-    
-    async loadModel() {
-        // 使用备用绘制，因为实际 Live2D SDK 加载可能复杂
-        this.useFallbackDrawing();
-    }
-    
-    useFallbackDrawing() {
-        const draw = () => {
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            
-            // 背景
-            const grad = this.ctx.createLinearGradient(0, 0, this.canvas.width, this.canvas.height);
-            grad.addColorStop(0, '#f093fb');
-            grad.addColorStop(1, '#f5576c');
-            this.ctx.fillStyle = grad;
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            
-            // 身体
-            this.ctx.fillStyle = '#FFB6C1';
-            this.ctx.beginPath();
-            this.ctx.ellipse(this.canvas.width/2, this.canvas.height - 100, 60, 80, 0, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            // 头部
-            this.ctx.fillStyle = '#FFC0CB';
-            this.ctx.beginPath();
-            this.ctx.arc(this.canvas.width/2, this.canvas.height - 180, 50, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            // 眼睛
-            const eyeX = (this.mouseX - 0.5) * 10;
-            const eyeY = (this.mouseY - 0.5) * 8;
-            
-            this.ctx.fillStyle = 'white';
-            this.ctx.beginPath();
-            this.ctx.arc(this.canvas.width/2 - 20 + eyeX, this.canvas.height - 190 + eyeY, 10, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.beginPath();
-            this.ctx.arc(this.canvas.width/2 + 20 + eyeX, this.canvas.height - 190 + eyeY, 10, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            this.ctx.fillStyle = 'black';
-            this.ctx.beginPath();
-            this.ctx.arc(this.canvas.width/2 - 20 + eyeX, this.canvas.height - 190 + eyeY, 5, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.beginPath();
-            this.ctx.arc(this.canvas.width/2 + 20 + eyeX, this.canvas.height - 190 + eyeY, 5, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            // 微笑
-            this.ctx.beginPath();
-            this.ctx.arc(this.canvas.width/2, this.canvas.height - 170, 20, 0.1, Math.PI - 0.1);
-            this.ctx.stroke();
-            
-            requestAnimationFrame(draw);
+/**
+ * 纯 JS 加载并渲染 Live2D 模型
+ * @param {string} elementId - 容器的 ID（自动在该容器内创建 canvas）
+ * @param {string} modelUrl - Live2D 模型的 model.json 绝对或相对路径
+ */
+function initLive2DModel(elementId, modelUrl) {
+    // 1. 动态引入 Live2D 核心依赖库（Cubism Web Framework 基础）
+    // 这里使用 cdnjs 提供的 pixi.js 和 pixi-live2d-display 库，这是目前前端最方便渲染 Live2D 的组合
+    const scripts = [
+        'https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js',
+        'https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js'
+    ];
+
+    let loadedCount = 0;
+
+    // 循环加载依赖脚本
+    scripts.forEach(src => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => {
+            loadedCount++;
+            if (loadedCount === scripts.length) {
+                // 依赖加载完成后，开始渲染模型
+                startRender(elementId, modelUrl);
+            }
         };
-        
-        draw();
-    }
-    
-    setupEvents() {
-        this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouseX = (e.clientX - rect.left) / rect.width;
-            this.mouseY = (e.clientY - rect.top) / rect.height;
-        });
-    }
-    
-    animate() {
-        // 动画逻辑
-        requestAnimationFrame(() => this.animate());
-    }
+        document.head.appendChild(script);
+    });
 }
 
-// 使用：
-// const live2d = new CanvasLive2D('yourCanvasId');
+// 内部核心渲染函数
+function startRender(elementId, modelUrl) {
+    const container = document.getElementById(elementId);
+    if (!container) {
+        console.error(`未找到 ID 为 "${elementId}" 的容器元素。`);
+        return;
+    }
+
+    // 2. 动态创建 Canvas 画布并设置样式
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.appendChild(canvas);
+
+    // 3. 初始化 PIXI 应用
+    const app = new PIXI.Application({
+        view: canvas,
+        autoStart: true,
+        resizeTo: container, // 自动撑满容器
+        backgroundAlpha: 0   // 背景透明
+    });
+
+    // 4. 载入并渲染 Live2D 模型
+    // pixi-live2d-display 会自动判断是 Live2D v2(Cubism 2) 还是 v3/v4(Cubism 3/4)
+    PIXI.live2d.Live2DModel.from(modelUrl).then(model => {
+        // 将模型添加到舞台
+        app.stage.addChild(model);
+
+        // 自动适配模型大小和位置
+        const scaleX = container.clientWidth / model.width;
+        const scaleY = container.clientHeight / model.height;
+        
+        // 保持比例缩放
+        const scale = Math.min(scaleX, scaleY);
+        model.scale.set(scale);
+
+        // 居中显示
+        model.x = (container.clientWidth - model.width * scale) / 2;
+        model.y = (container.clientHeight - model.height * scale) / 2;
+
+        // 绑定互动事件（例如点击、拖拽视线跟随鼠标）
+        model.on('hit', (hitAreas) => {
+            if (hitAreas.includes('body')) {
+                model.motion('tap_body'); // 触发点击身体的动作
+            }
+        });
+    }).catch(error => {
+        console.error('Live2D 模型加载失败:', error);
+    });
+}
