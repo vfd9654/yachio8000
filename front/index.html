@@ -14,6 +14,7 @@
         }
         canvas {
             margin: 0;
+            cursor: none;
         }
     </style>
 </head>
@@ -21,6 +22,7 @@
     <canvas id="live2d-canvas"></canvas>
     <script>
         var yachio;
+        var cursor;
         (async () => {
             // init
             const app = new PIXI.Application({
@@ -33,6 +35,9 @@
             bg.width = app.screen.width;
             bg.height = app.screen.height;
             app.stage.addChild(bg);
+            // cursor
+            cursor = PIXI.Point();
+            app.stage.addChild(cursor);
             // yachio init
             yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
             app.stage.addChild(yachio);
@@ -41,5 +46,9 @@
             yachio.x = (app.screen.width / 2) - (yachio.width / 2);
             yachio.interactive = false;
         })();
+        window.addEventListener('mousemove', (event) => {
+            cursor.x = event.clientX;
+            cursor.y = event.clientY;
+        });
     </script>
 </body>
