@@ -1,11 +1,20 @@
 <!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
-    <script src="live2d.js"></script>
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+        }
+        canvas {
+            margin: 0;
+        }
+    </style>
 </head>
 <body>
     <canvas id="live2d-canvas"></canvas>
@@ -14,7 +23,7 @@
             const app = new PIXI.Application({
                 view: document.getElementById("live2d-canvas"),
                 autoStart: true,
-                resizeTo: window
+                resizeTo: document.body,
             });
             const yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
             app.stage.addChild(yachio);
