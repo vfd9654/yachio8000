@@ -106,7 +106,7 @@ window.addEventListener("DOMContentLoaded", function () {
 document.body.addEventListener("click", function () {
     const audioElements = document.getElementsByTagName("audio");
     if (audioElements.length > 0) {
-        audioElements.forEach(audio => {
+        Array.from(audioElements).forEach(audio => {
             if (audio.paused) {
                 audio.play();
             }
