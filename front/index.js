@@ -97,7 +97,7 @@ var yachio;
         console.log("volume: "+volume);
         if (yachio && yachio.internalModel && yachio.internalModel.coreModel) {
             // 设置张嘴参数，volume范围0-1
-            yachio.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", volume);
+            yachio.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", volume*1.5);
         }
     });
 })();
