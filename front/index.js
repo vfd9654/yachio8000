@@ -106,12 +106,11 @@ window.addEventListener("DOMContentLoaded", function () {
 document.body.addEventListener("click", function () {
     const audioElements = document.getElementsByTagName("audio");
     if (audioElements.length > 0) {
-        const audio = audioElements[0];
-        if (audio.paused) {
-            audio.play();
-        } else {
-            audio.pause();
-        }
+        audioElements.forEach(audio => {
+            if (audio.paused) {
+                audio.play();
+            }
+        });
     }
 });
 });
