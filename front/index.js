@@ -71,7 +71,6 @@ function trackAudioVolume(audioId, callback) {
 
 
 var yachio;
-var cursor;
 (async () => {
     // init PIXI
     const app = new PIXI.Application({
