@@ -94,6 +94,7 @@ var yachio;
     console.log("Live2D模型已加载");
     // 启动音频音量追踪，连接张嘴参数
     trackAudioVolume('vocal', (volume) => {
+        console.log("volume: "+volume);
         if (yachio && yachio.internalModel && yachio.internalModel.coreModel) {
             // 设置张嘴参数，volume范围0-1
             yachio.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", volume);
