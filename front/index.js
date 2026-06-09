@@ -79,8 +79,8 @@ var cursor;
     yachio.interactive = false;
 })();
 
-document.body.addEventListener("click", function () {
-    document.getElementsByTagName("audio").forEach(function (e) {
-        e.play();
-    })
-})
+// document.getElementById("live2d-canvas").addEventListener("click", function () {
+//     document.getElementsByTagName("audio").forEach(function (e) {
+//         e.play();
+//     })
+// })
