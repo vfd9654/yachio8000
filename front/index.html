@@ -5,6 +5,7 @@
     <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+    <script src="index.js"></script>
     <style>
         body {
             margin: 0;
@@ -15,32 +16,13 @@
         canvas {
             margin: 0;
         }
+        audio {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <canvas id="live2d-canvas"></canvas>
-    <script>
-        var yachio;
-        var cursor;
-        (async () => {
-            // init
-            const app = new PIXI.Application({
-                view: document.getElementById("live2d-canvas"),
-                autoStart: true,
-                resizeTo: document.body,
-            });
-            // background
-            const bg = PIXI.Sprite.from("back.png");
-            bg.width = app.screen.width;
-            bg.height = app.screen.height;
-            app.stage.addChild(bg);
-            // yachio init
-            yachio = await PIXI.live2d.Live2DModel.from("models/yachio/八千代辉夜姬.model3.json");
-            app.stage.addChild(yachio);
-            yachio.scale.set(0.13);
-            yachio.y = app.screen.height / 6;
-            yachio.x = (app.screen.width / 2) - (yachio.width / 2);
-            yachio.interactive = false;
-        })();
-    </script>
+    <audio id="vocal" src="songs/StarrySea.vocal.mp3"></audio>
+    <audio id="bgm" src="songs/StarrySea.bgm.mp3"></audio>
 </body>
